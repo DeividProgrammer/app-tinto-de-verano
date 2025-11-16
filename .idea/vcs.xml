@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mu-groups" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mu-leaderboard" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mu-session" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/mu-weekly_counter" vcs="Git" />
+  </component>
+</project>

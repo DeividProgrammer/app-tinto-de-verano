@@ -1,0 +1,101 @@
+x-logging:
+  &default-logging
+  driver: "json-file"
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  identifier:
+    image: semtech/mu-identifier:1.10.3
+    environment:
+      SESSION_COOKIE_SECURE: "on"
+    labels:
+      - "logging=true"
+    logging: *default-logging
+
+  dispatcher:
+    image: semtech/mu-dispatcher:2.1.0-beta.2
+    volumes:
+      - ./config/dispatcher:/config
+    labels:
+      - "logging=true"
+    logging: *default-logging
+    ports:
+      - "8888:80"   # aquí expones TODO tu backend hacia fuera
+
+  resource:
+    image: semtech/mu-cl-resources:1.26.0
+    volumes:
+      - ./config/resources:/config
+    labels:
+      - "logging=true"
+    logging: *default-logging
+
+  migrations:
+    image: semtech/mu-migrations-service:0.9.0
+    links:
+      - triplestore:database
+    environment:
+      MU_SPARQL_TIMEOUT: 600
+    volumes:
+      - ./config/migrations:/data/migrations
+    labels:
+      - "logging=true"
+    logging: *default-logging
+
+  delta-notifier:
+    image: semtech/mu-delta-notifier:0.4.0
+    volumes:
+      - ./config/delta:/config/
+    labels:
+      - "logging=true"
+    logging: *default-logging
+
+  database:
+    image: semtech/sparql-parser:0.0.15
+    volumes:
+      - ./config/authorization/:/config/
+      - ./data/authorization/:/data/
+    labels:
+      - "logging=true"
+    logging: *default-logging
+
+  triplestore:
+    image: redpencil/virtuoso:1.2.1
+    environment:
+      SPARQL_UPDATE: "true"
+    volumes:
+      - ./data/db:/data
+      - ./config/virtuoso/virtuoso.ini:/data/virtuoso.ini
+    labels:
+      - "logging=true"
+    logging: *default-logging
+
+  mu-session:
+    image: semtech/mu-javascript-template:1.9.1
+    environment:
+      NODE_ENV: "development"
+    volumes:
+      - "/home/deivid/Desktop/onboarding/getting-started/mu-session/:/app"
+
+  mu-groups:
+    image: semtech/mu-javascript-template:1.9.1
+    environment:
+      NODE_ENV: "development"
+    volumes:
+      - "/home/deivid/Desktop/onboarding/getting-started/mu-groups/:/app"
+
+  mu-weekly_counter:
+    image: semtech/mu-javascript-template:1.9.1
+    environment:
+      NODE_ENV: "development"
+    volumes:
+      - "/home/deivid/Desktop/onboarding/getting-started/mu-weekly_counter/:/app"
+
+  mu-leaderboard:
+    image: semtech/mu-javascript-template:1.9.1
+    environment:
+      NODE_ENV: "development"
+    volumes:
+      - "/home/deivid/Desktop/onboarding/getting-started/mu-leaderboard/:/app"
