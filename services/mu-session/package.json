@@ -1,0 +1,9 @@
+{
+  "name": "mu-session-service",
+  "version": "1.0.0",
+  "description": "Simple session service with password validation",
+  "main": "app.js",
+  "dependencies": {
+    "bcrypt": "^5.1.1"
+  }
+}

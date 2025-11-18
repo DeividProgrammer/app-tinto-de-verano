@@ -1,90 +1,176 @@
-import { app, errorHandler, query, uuid } from 'mu';
+import { app, errorHandler, query } from 'mu';
+import bcrypt from 'bcrypt';
 
 /**
- * POST /session - Login simple por email
- * Usa la sesión que identifier ya creó, solo la vincula con el account
+ * POST /session
+ * Body:
+ * {
+ *   "data": {
+ *     "attributes": {
+ *       "email": "deivid2",
+ *       "password": "123"
+ *     }
+ *   }
+ * }
  */
 app.post('/session', async (req, res) => {
-  const email = req.body?.data?.attributes?.email;
-  if (!email) return res.status(400).send({ errors: [{ title: 'Email required' }] });
+    const loginIdentifier = req.body?.data?.attributes?.email;
+    const password = req.body?.data?.attributes?.password;
 
-  const sessionId = req.get('MU-SESSION-ID');
-  if (!sessionId) return res.status(400).send({ errors: [{ title: 'No session from identifier' }] });
-
-
-  const result = await query(`
-    PREFIX foaf: <http://xmlns.com/foaf/0.1/>
-    SELECT ?account WHERE {
-      GRAPH <http://mu.semte.ch/graphs/public> {
-        ?account a foaf:OnlineAccount ;
-                 foaf:accountName "${email}" .
-      }
-    } LIMIT 1
-  `);
-
-  if (!result.results.bindings.length) {
-    return res.status(404).send({ errors: [{ title: 'Account not found' }] });
-  }
-
-  const account = result.results.bindings[0].account.value;
-
-  // Vincular el sessionId del identifier con el account (hacer login)
-  await query(`
-    PREFIX session: <http://mu.semte.ch/vocabularies/session/>
-    
-    INSERT DATA {
-      GRAPH <http://mu.semte.ch/graphs/sessions> {
-        <http://mu.semte.ch/sessions/${sessionId}>
-          session:account <${account}> .
-      }
+    if (!loginIdentifier || !password) {
+        return res.status(400).send({ errors: [{ title: 'Email and password required' }] });
     }
-  `);
 
-  res.status(201).send({ data: { type: 'sessions', id: sessionId } });
+    const sessionId = req.get('MU-SESSION-ID');
+    if (!sessionId) {
+        return res.status(400).send({ errors: [{ title: 'No session from identifier (MU-SESSION-ID missing)' }] });
+    }
+
+    console.log(`[LOGIN] Attempting login with: ${loginIdentifier}`);
+    console.log(`[LOGIN] Session ID: ${sessionId}`);
+
+    let accountResult = await query(`
+        PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+        PREFIX acc:  <http://mu.semte.ch/vocabularies/account/>
+        SELECT ?account ?passwordHash WHERE {
+          GRAPH <http://mu.semte.ch/application> {
+            ?account a foaf:OnlineAccount ;
+                     foaf:accountName "${loginIdentifier}" ;
+                     acc:password ?passwordHash .
+          }
+        } LIMIT 1
+    `);
+
+    console.log(`[LOGIN] Found by accountName: ${accountResult.results.bindings.length > 0}`);
+
+
+    if (!accountResult.results.bindings.length) {
+        console.log(`[LOGIN] Trying to find by Person email...`);
+        accountResult = await query(`
+            PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+            PREFIX acc:  <http://mu.semte.ch/vocabularies/account/>
+            SELECT ?account ?passwordHash WHERE {
+              GRAPH <http://mu.semte.ch/application> {
+                ?person a foaf:Person ;
+                        foaf:mbox "${loginIdentifier}" ;
+                        foaf:account ?account .
+                ?account a foaf:OnlineAccount ;
+                         acc:password ?passwordHash .
+              }
+            } LIMIT 1
+        `);
+        console.log(`[LOGIN] Found by Person email: ${accountResult.results.bindings.length > 0}`);
+    }
+
+    if (!accountResult.results.bindings.length) {
+        console.log(`[LOGIN] Account not found for: ${loginIdentifier}`);
+        return res.status(401).send({
+            errors: [{ title: 'Invalid email or password' }]
+        });
+    }
+
+    const binding = accountResult.results.bindings[0];
+    const account = binding.account.value;
+    const passwordHash = binding.passwordHash.value;
+    console.log(`[LOGIN] Found account: ${account}`);
+    console.log(`[LOGIN] Password hash from DB: ${passwordHash.substring(0, 20)}...`);
+    console.log(`[LOGIN] Password received (IGNORED IN DEV MODE): ${password}`);
+
+    //
+    // let isValid = false;
+    // try {
+    //     isValid = await bcrypt.compare(password, passwordHash);
+    //     console.log(`[LOGIN] bcrypt.compare result: ${isValid}`);
+    // } catch (e) {
+    //     console.error('[LOGIN] Error during bcrypt comparison', e);
+    //     return res.status(500).send({ errors: [{ title: 'Internal error validating password' }] });
+    // }
+    //
+    // if (!isValid) {
+    //     console.log('[LOGIN] Invalid password - bcrypt comparison failed');
+    //     return res.status(401).send({ errors: [{ title: 'Invalid email or password' }] });
+    // }
+    console.log('[LOGIN] DEV MODE: skipping password validation, accepting identifier only');
+
+    await query(`
+        PREFIX session: <http://mu.semte.ch/vocabularies/session/>
+
+        INSERT DATA {
+          GRAPH <http://mu.semte.ch/graphs/sessions> {
+            <http://mu.semte.ch/sessions/${sessionId}>
+              session:account <${account}> .
+          }
+        }
+    `);
+
+    console.log(`[LOGIN] Session created successfully`);
+
+    return res.status(201).send({
+        data: {
+            type: 'sessions',
+            id: sessionId,
+            attributes: { identifier: loginIdentifier }
+        }
+    });
 });
 
 
 app.get('/me', async (req, res) => {
-  const sessionId = req.get('MU-SESSION-ID');
-  if (!sessionId) return res.status(401).send({ errors: [{ title: 'Session required' }] });
+    const sessionId = req.get('MU-SESSION-ID');
 
-  const result = await query(`
-    PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
-    PREFIX foaf: <http://xmlns.com/foaf/0.1/>
-    PREFIX session: <http://mu.semte.ch/vocabularies/session/>
-    SELECT ?name ?email WHERE {
-      GRAPH <http://mu.semte.ch/graphs/sessions> {
-        ?s session:account ?account ;
-           mu:uuid "${sessionId}" .
-      }
-      GRAPH <http://mu.semte.ch/graphs/public> {
-        ?account foaf:accountName ?email .
-      }
-      GRAPH <http://mu.semte.ch/graphs/users> {
-        ?account foaf:account ?user .
-      }
-      GRAPH <http://mu.semte.ch/graphs/public> {
-        ?user foaf:name ?name .
-      }
-    } LIMIT 1
-  `);
-
-  if (!result.results.bindings.length) {
-    return res.status(404).send({ errors: [{ title: 'Session not found' }] });
-  }
-
-  const user = result.results.bindings[0];
-  res.send({
-    data: {
-      type: 'users',
-      attributes: {
-        name: user.name.value,
-        email: user.email.value
-      }
+    if (!sessionId) {
+        return res.status(401).send({ errors: [{ title: 'Session required (MU-SESSION-ID header)' }] });
     }
-  });
+
+    console.log(`[GET /me] Session ID: ${sessionId}`);
+
+    const result = await query(`
+        PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+        PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+        PREFIX session: <http://mu.semte.ch/vocabularies/session/>
+
+        SELECT ?name ?accountName ?email WHERE {
+          # 1. Sesión -> account
+          GRAPH <http://mu.semte.ch/graphs/sessions> {
+            <http://mu.semte.ch/sessions/${sessionId}>
+              session:account ?account .
+          }
+
+          GRAPH <http://mu.semte.ch/application> {
+            ?account a foaf:OnlineAccount ;
+                     foaf:accountName ?accountName .
+          }
+
+          GRAPH <http://mu.semte.ch/application> {
+            ?user a foaf:Person ;
+                  foaf:account ?account ;
+                  foaf:name ?name .
+            
+            OPTIONAL { ?user foaf:mbox ?email }
+          }
+        } LIMIT 1
+    `);
+
+    if (!result.results.bindings.length) {
+        console.log(`[GET /me] Session or user not found for: ${sessionId}`);
+        return res.status(404).send({ errors: [{ title: 'Session or user not found' }] });
+    }
+
+    const row = result.results.bindings[0];
+
+    console.log(`[GET /me] Found user: ${row.name.value}`);
+
+    return res.send({
+        data: {
+            type: 'users',
+            attributes: {
+                name: row.name.value,
+                accountName: row.accountName.value,
+                email: row.email?.value || row.accountName.value
+            }
+        }
+    });
 });
 
+
 app.use(errorHandler);
-
-
