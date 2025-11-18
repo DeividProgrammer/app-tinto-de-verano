@@ -92,12 +92,60 @@ app.post('/session', async (req, res) => {
     // }
     console.log('[LOGIN] DEV MODE: skipping password validation, accepting identifier only');
 
+    // Normalize session URI - remove any existing http:// prefix to avoid duplicates
+    const cleanSessionId = sessionId.replace(/^https?:\/\/mu\.semte\.ch\/sessions\//, '');
+    const sessionUri = `http://mu.semte.ch/sessions/${cleanSessionId}`;
+
+    console.log(`[LOGIN] Clean session ID: ${cleanSessionId}`);
+    console.log(`[LOGIN] Session URI: ${sessionUri}`);
+
+    // Delete ALL existing session data for this session ID (any format) using direct Virtuoso call
+    const deleteQuery = `
+        PREFIX session: <http://mu.semte.ch/vocabularies/session/>
+        
+        DELETE {
+          GRAPH <http://mu.semte.ch/graphs/sessions> {
+            ?s ?p ?o .
+          }
+        }
+        WHERE {
+          GRAPH <http://mu.semte.ch/graphs/sessions> {
+            ?s ?p ?o .
+            FILTER(
+              STR(?s) = "${sessionUri}" ||
+              STR(?s) = "http://mu.semte.ch/sessions/http://mu.semte.ch/sessions/${cleanSessionId}" ||
+              CONTAINS(STR(?s), "${cleanSessionId}")
+            )
+          }
+        }
+    `;
+
+    try {
+        const deleteResponse = await fetch('http://triplestore:8890/sparql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/sparql-update',
+            },
+            body: deleteQuery
+        });
+
+        if (deleteResponse.ok) {
+            console.log('[LOGIN] Successfully deleted old session data');
+        } else {
+            const errorText = await deleteResponse.text();
+            console.warn('[LOGIN] Warning: Could not delete old session data:', errorText);
+        }
+    } catch (deleteError) {
+        console.warn('[LOGIN] Warning: Error deleting old session:', deleteError.message);
+    }
+
+    // Create new clean session
     await query(`
         PREFIX session: <http://mu.semte.ch/vocabularies/session/>
 
         INSERT DATA {
           GRAPH <http://mu.semte.ch/graphs/sessions> {
-            <http://mu.semte.ch/sessions/${sessionId}>
+            <${sessionUri}>
               session:account <${account}> .
           }
         }
@@ -108,7 +156,7 @@ app.post('/session', async (req, res) => {
     return res.status(201).send({
         data: {
             type: 'sessions',
-            id: sessionId,
+            id: sessionUri,
             attributes: { identifier: loginIdentifier }
         }
     });
@@ -122,7 +170,12 @@ app.get('/me', async (req, res) => {
         return res.status(401).send({ errors: [{ title: 'Session required (MU-SESSION-ID header)' }] });
     }
 
-    console.log(`[GET /me] Session ID: ${sessionId}`);
+    // Normalize session URI
+    const cleanSessionId = sessionId.replace(/^https?:\/\/mu\.semte\.ch\/sessions\//, '');
+    const sessionUri = `http://mu.semte.ch/sessions/${cleanSessionId}`;
+
+    console.log(`[GET /me] Session ID: ${cleanSessionId}`);
+    console.log(`[GET /me] Session URI: ${sessionUri}`);
 
     const result = await query(`
         PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
@@ -130,9 +183,8 @@ app.get('/me', async (req, res) => {
         PREFIX session: <http://mu.semte.ch/vocabularies/session/>
 
         SELECT ?name ?accountName ?email WHERE {
-          # 1. Sesión -> account
           GRAPH <http://mu.semte.ch/graphs/sessions> {
-            <http://mu.semte.ch/sessions/${sessionId}>
+            <${sessionUri}>
               session:account ?account .
           }
 
@@ -152,7 +204,7 @@ app.get('/me', async (req, res) => {
     `);
 
     if (!result.results.bindings.length) {
-        console.log(`[GET /me] Session or user not found for: ${sessionId}`);
+        console.log(`[GET /me] Session or user not found for: ${cleanSessionId}`);
         return res.status(404).send({ errors: [{ title: 'Session or user not found' }] });
     }
 

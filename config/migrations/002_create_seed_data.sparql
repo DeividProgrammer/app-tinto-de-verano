@@ -1,0 +1,39 @@
+PREFIX mu:   <http://mu.semte.ch/vocabularies/core/>
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX ext:  <http://mu.semte.ch/vocabularies/ext/>
+
+INSERT DATA {
+  GRAPH <http://mu.semte.ch/graphs/public> {
+    # Users
+    <http://tinto.app/users/user-1>
+      a foaf:Person ;
+      mu:uuid "user-1" ;
+      foaf:name "Alice" ;
+      foaf:mbox "alice@example.com" .
+
+    <http://tinto.app/users/user-2>
+      a foaf:Person ;
+      mu:uuid "user-2" ;
+      foaf:name "Bob" ;
+      foaf:mbox "bob@example.com" .
+
+    # Group
+    <http://tinto.app/groups/group-1>
+      a foaf:Organization ;
+      mu:uuid "group-1" ;
+      foaf:name "Weekend Warriors" ;
+      ext:status "active" .
+
+    # Membership (group → members)
+    <http://tinto.app/groups/group-1> foaf:member <http://tinto.app/users/user-1> .
+
+    # Weekly count for Alice (ejemplo semana 2025-W45)
+    <http://tinto.app/weekly-counts/wc-1>
+      a ext:WeeklyCount ;
+      mu:uuid "wc-1" ;
+      ext:period "2025-W45" ;
+      ext:count 3 ;
+      ext:user <http://tinto.app/users/user-1> .
+  }
+}
+

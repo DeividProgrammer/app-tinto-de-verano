@@ -31,7 +31,7 @@ This guide breaks down the entire project into sequential steps, from infrastruc
 **Example for session-service**:
 ```yaml
 session-service:
-  build: ./services/session-service
+  build: ./services/mu-session-service
   ports:
     - "4000:4000"
   links:
@@ -41,7 +41,7 @@ session-service:
     MU_SPARQL_ENDPOINT: http://triplestore:8890/sparql
     MU_RESOURCE_ENDPOINT: http://resource:3000
   volumes:
-    - ./services/session-service:/app
+    - ./services/mu-session-service:/app
 ```
 
 **Deliverable**: Updated `docker-compose.yml` with all 4 services
@@ -228,14 +228,14 @@ const express = require('express');
 const app = express();
 
 app.get('/me', async (req, res) => {
-  const sessionId = req.headers['mu-session-id'];
+  const sessionId = req.headers['mu-mu-session-id'];
   // Query Virtuoso for user
   // Return user data
 });
 
 app.post('/session', async (req, res) => {
-  // Create new user/session
-  // Return session ID and user
+  // Create new user/mu-session
+  // Return mu-session ID and user
 });
 ```
 
@@ -522,7 +522,7 @@ Create 5 main components:
 
 3. Check logs for errors:
    ```bash
-   docker-compose logs -f session-service
+   docker-compose logs -f mu-session-service
    docker-compose logs -f dispatcher
    docker-compose logs -f triplestore
    ```

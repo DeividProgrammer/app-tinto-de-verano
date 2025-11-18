@@ -1,54 +1,76 @@
 defmodule Dispatcher do
   use Matcher
+
   define_accept_types [
     html: [ "text/html", "application/xhtml+html" ],
     json: [ "application/json", "application/vnd.api+json" ]
   ]
 
   @any %{}
-  @json %{ accept: %{ json: true } }
+  @json %{ accept: %{ json: true }, layer: :services }
   @html %{ accept: %{ html: true } }
 
-  define_layers [ :static, :services, :fall_back, :not_found ]
+  define_layers [ :services, :not_found ]
 
-  # === SESSION SERVICE ===
-  match "/session@post", @json, %{ layer: :services } do
-    Proxy.forward conn, [], "http://mu-session:80"
+  # Auth & Sessions (semtech registration + custom session service)
+  match "/accounts", @json do
+    Proxy.forward conn, [], "http://registration/accounts"
   end
 
-  match "/me@get", @json, %{ layer: :services } do
-    Proxy.forward conn, [], "http://mu-session:80"
+  match "/accounts/*path", @json do
+    Proxy.forward conn, path, "http://registration/accounts/"
   end
 
-  # === GROUPS SERVICE ===
-  match "/groups/:id@get", @json, %{ layer: :services } do
-    Proxy.forward conn, [], "http://mu-groups:80"
+  # Servicio de sesión simple propio
+  match "/session", @json do
+    Proxy.forward conn, [], "http://mu-session:80/session"
   end
 
-  match "/groups/:id/join@post", @json, %{ layer: :services } do
-    Proxy.forward conn, [], "http://mu-groups:80"
+  match "/me", @json do
+    Proxy.forward conn, [], "http://mu-session:80/me"
   end
 
-  # === COUNTER SERVICE ===
-  match "/me/counter@get", @json, %{ layer: :services } do
-    Proxy.forward conn, [], "http://mu-weekly-counter:80"
+  # Groups - join a group (must be before /groups/:id)
+  match "/groups/:id/join", @json do
+    Proxy.forward conn, [], "http://mu-groups:80/groups/" <> id <> "/join"
   end
 
-  match "/me/counter/increment@post", @json, %{ layer: :services } do
-    Proxy.forward conn, [], "http://mu-weekly-counter:80"
+  # Groups - leave a group
+  match "/groups/:id/leave", @json do
+    Proxy.forward conn, [], "http://mu-groups:80/groups/" <> id <> "/leave"
   end
 
-  match "/me/counter/decrement@post", @json, %{ layer: :services } do
-    Proxy.forward conn, [], "http://mu-weekly-counter:80"
+  # Groups - get members of a group
+  match "/groups/:id/members", @json do
+    Proxy.forward conn, [], "http://mu-groups:80/groups/" <> id <> "/members"
   end
 
-  # === LEADERBOARD SERVICE ===
-  match "/groups/:id/leaderboard@get", @json, %{ layer: :services } do
-    Proxy.forward conn, [], "http://mu-leaderboard:80"
+  # Groups - get specific group
+  match "/groups/:id", @json do
+    Proxy.forward conn, [], "http://mu-groups:80/groups/" <> id
   end
 
-  # === 404 FALLBACK ===
+  # Groups - list all groups or create new group
+  match "/groups", @json do
+    Proxy.forward conn, [], "http://mu-groups:80/groups"
+  end
+
+  # Counter
+  match "/me/counter/*path", @json do
+    Proxy.forward conn, path, "http://mu-weekly_counter:80/me/counter/"
+  end
+
+  match "/me/counter", @json do
+    Proxy.forward conn, [], "http://mu-weekly_counter:80/me/counter"
+  end
+
+  # Leaderboard
+  match "/groups/:id/leaderboard", @json do
+    Proxy.forward conn, [], "http://mu-leaderboard:80/groups/" <> id <> "/leaderboard"
+  end
+
+  # 404
   match "/*_", %{ layer: :not_found } do
-    send_resp( conn, 404, "Route not found.  See config/dispatcher.ex" )
+    send_resp conn, 404, "Route not found"
   end
 end

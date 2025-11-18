@@ -10,19 +10,26 @@ services:
     image: semtech/mu-identifier:1.10.3
     environment:
       SESSION_COOKIE_SECURE: "on"
+      DEFAULT_MU_AUTH_ALLOWED_GROUPS_HEADER: "[{\"variables\":[],\"name\":\"public\"}]"
+      DEFAULT_ACCESS_CONTROL_ALLOW_ORIGIN_HEADER: "*"
+    links:
+      - dispatcher:dispatcher
     labels:
       - "logging=true"
     logging: *default-logging
+    ports:
+      - "8888:80"   # identifier es el punto de entrada
 
   dispatcher:
     image: semtech/mu-dispatcher:2.1.0-beta.2
     volumes:
       - ./config/dispatcher:/config
+    links:
+      - registration:registration
+      - mu-session:mu-session
     labels:
       - "logging=true"
     logging: *default-logging
-    ports:
-      - "8888:80"   # aquí expones TODO tu backend hacia fuera
 
   resource:
     image: semtech/mu-cl-resources:1.26.0
@@ -38,6 +45,7 @@ services:
       - triplestore:database
     environment:
       MU_SPARQL_TIMEOUT: 600
+      MU_SPARQL_ENDPOINT: "http://database:8890/sparql"
     volumes:
       - ./config/migrations:/data/migrations
     labels:
@@ -68,6 +76,8 @@ services:
     volumes:
       - ./data/db:/data
       - ./config/virtuoso/virtuoso.ini:/data/virtuoso.ini
+    ports:
+      - "8890:8890"
     labels:
       - "logging=true"
     logging: *default-logging
@@ -76,26 +86,69 @@ services:
     image: semtech/mu-javascript-template:1.9.1
     environment:
       NODE_ENV: "development"
+      MU_SPARQL_ENDPOINT: "http://triplestore:8890/sparql"
+      MU_APPLICATION_GRAPH: "http://mu.semte.ch/application"
     volumes:
-      - "/home/deivid/Desktop/onboarding/getting-started/mu-session/:/app"
+      - "./services/mu-session:/app"
+    links:
+      - triplestore:triplestore
+    ports:
+      - "9229:9229"  # Puerto del debugger Node.js
+    labels:
+      - "logging=true"
+    logging: *default-logging
 
   mu-groups:
     image: semtech/mu-javascript-template:1.9.1
     environment:
       NODE_ENV: "development"
+      MU_SPARQL_ENDPOINT: "http://triplestore:8890/sparql"
+      MU_APPLICATION_GRAPH: "http://mu.semte.ch/application"
     volumes:
-      - "/home/deivid/Desktop/onboarding/getting-started/mu-groups/:/app"
+      - "./services/mu-groups:/app"
+    links:
+      - triplestore:triplestore
+    ports:
+      - "9230:9229"  # Debug port for PyCharm/WebStorm
+    labels:
+      - "logging=true"
+    logging: *default-logging
 
   mu-weekly_counter:
     image: semtech/mu-javascript-template:1.9.1
     environment:
       NODE_ENV: "development"
+      MU_SPARQL_ENDPOINT: "http://triplestore:8890/sparql"
+      MU_APPLICATION_GRAPH: "http://mu.semte.ch/application"
     volumes:
-      - "/home/deivid/Desktop/onboarding/getting-started/mu-weekly_counter/:/app"
+      - "./services/mu-weekly_counter:/app"
+    links:
+      - triplestore:triplestore
+    labels:
+      - "logging=true"
+    logging: *default-logging
 
   mu-leaderboard:
     image: semtech/mu-javascript-template:1.9.1
     environment:
       NODE_ENV: "development"
+      MU_SPARQL_ENDPOINT: "http://triplestore:8890/sparql"
+      MU_APPLICATION_GRAPH: "http://mu.semte.ch/application"
     volumes:
-      - "/home/deivid/Desktop/onboarding/getting-started/mu-leaderboard/:/app"
+      - "./services/mu-leaderboard:/app"
+    links:
+      - triplestore:triplestore
+    labels:
+      - "logging=true"
+    logging: *default-logging
+
+  registration:
+    image: semtech/mu-registration-service:2.7.3
+    links:
+      - triplestore:triplestore
+    environment:
+      MU_APPLICATION_GRAPH: "http://mu.semte.ch/application"
+      MU_SPARQL_ENDPOINT: "http://triplestore:8890/sparql"
+    labels:
+      - "logging=true"
+    logging: *default-logging
