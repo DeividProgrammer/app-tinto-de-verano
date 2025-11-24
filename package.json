@@ -1,0 +1,11 @@
+{
+  "name": "mu-groups",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Groups service for Tinto de Verano tracker",
+  "main": "app.js",
+  "dependencies": {
+    "uuid": "^9.0.0"
+  }
+}
+
