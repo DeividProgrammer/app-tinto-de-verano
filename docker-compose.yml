@@ -6,6 +6,9 @@ x-logging:
     max-file: "3"
 
 services:
+  # ---------------------------
+  # ENTRYPOINT
+  # ---------------------------
   identifier:
     image: semtech/mu-identifier:1.10.3
     environment:
@@ -18,8 +21,11 @@ services:
       - "logging=true"
     logging: *default-logging
     ports:
-      - "8888:80"   # identifier es el punto de entrada
+      - "8888:80"
 
+  # ---------------------------
+  # DISPATCHER
+  # ---------------------------
   dispatcher:
     image: semtech/mu-dispatcher:2.1.0-beta.2
     volumes:
@@ -27,22 +33,33 @@ services:
     links:
       - registration:registration
       - mu-session:mu-session
+      - mu-weekly_counter:mu-weekly_counter
     labels:
       - "logging=true"
     logging: *default-logging
 
+  # ---------------------------
+  # RESOURCES SERVICE
+  # ---------------------------
   resource:
     image: semtech/mu-cl-resources:1.26.0
     volumes:
       - ./config/resources:/config
+    environment:
+      MU_SPARQL_ENDPOINT: "http://database:8890/sparql"
+    links:
+      - database:database
     labels:
       - "logging=true"
     logging: *default-logging
 
+  # ---------------------------
+  # MIGRATIONS
+  # ---------------------------
   migrations:
     image: semtech/mu-migrations-service:0.9.0
     links:
-      - triplestore:database
+      - database:database
     environment:
       MU_SPARQL_TIMEOUT: 600
       MU_SPARQL_ENDPOINT: "http://database:8890/sparql"
@@ -52,16 +69,27 @@ services:
       - "logging=true"
     logging: *default-logging
 
+  # ---------------------------
+  # DELTA NOTIFIER
+  # ---------------------------
   delta-notifier:
     image: semtech/mu-delta-notifier:0.4.0
+    links:
+      - database:database
+      - mu-weekly_counter:mu-weekly_counter
     volumes:
       - ./config/delta:/config/
     labels:
       - "logging=true"
     logging: *default-logging
 
+  # ---------------------------
+  # AUTHORIZATION + DELTAS
+  # ---------------------------
   database:
     image: semtech/sparql-parser:0.0.15
+    links:
+      - triplestore:triplestore
     volumes:
       - ./config/authorization/:/config/
       - ./data/authorization/:/data/
@@ -69,6 +97,9 @@ services:
       - "logging=true"
     logging: *default-logging
 
+  # ---------------------------
+  # TRIPLESTORE
+  # ---------------------------
   triplestore:
     image: redpencil/virtuoso:1.2.1
     environment:
@@ -82,73 +113,86 @@ services:
       - "logging=true"
     logging: *default-logging
 
+  # ---------------------------
+  # MU-SESSION (IMPORTANT: USE AUTH)
+  # ---------------------------
   mu-session:
     image: semtech/mu-javascript-template:1.9.1
     environment:
       NODE_ENV: "development"
-      MU_SPARQL_ENDPOINT: "http://triplestore:8890/sparql"
+      MU_SPARQL_ENDPOINT: "http://database:8890/sparql"   # FIXED
       MU_APPLICATION_GRAPH: "http://mu.semte.ch/application"
     volumes:
       - "./services/mu-session:/app"
     links:
-      - triplestore:triplestore
+      - database:database
     ports:
-      - "9229:9229"  # Puerto del debugger Node.js
+      - "9229:9229"
     labels:
       - "logging=true"
     logging: *default-logging
 
+  # ---------------------------
+  # MU-GROUPS
+  # ---------------------------
   mu-groups:
     image: semtech/mu-javascript-template:1.9.1
     environment:
       NODE_ENV: "development"
-      MU_SPARQL_ENDPOINT: "http://triplestore:8890/sparql"
+      MU_SPARQL_ENDPOINT: "http://database:8890/sparql"
       MU_APPLICATION_GRAPH: "http://mu.semte.ch/application"
     volumes:
       - "./services/mu-groups:/app"
     links:
-      - triplestore:triplestore
-    ports:
-      - "9230:9229"  # Debug port for PyCharm/WebStorm
+      - database:database
     labels:
       - "logging=true"
     logging: *default-logging
 
+  # ---------------------------
+  # WEEKLY COUNTER (DELTA DESTINATION)
+  # ---------------------------
   mu-weekly_counter:
     image: semtech/mu-javascript-template:1.9.1
     environment:
       NODE_ENV: "development"
-      MU_SPARQL_ENDPOINT: "http://triplestore:8890/sparql"
+      MU_SPARQL_ENDPOINT: "http://database:8890/sparql"
       MU_APPLICATION_GRAPH: "http://mu.semte.ch/application"
     volumes:
       - "./services/mu-weekly_counter:/app"
     links:
-      - triplestore:triplestore
+      - database:database
     labels:
       - "logging=true"
     logging: *default-logging
 
+  # ---------------------------
+  # LEADERBOARD
+  # ---------------------------
   mu-leaderboard:
     image: semtech/mu-javascript-template:1.9.1
     environment:
       NODE_ENV: "development"
-      MU_SPARQL_ENDPOINT: "http://triplestore:8890/sparql"
+      MU_SPARQL_ENDPOINT: "http://database:8890/sparql"
       MU_APPLICATION_GRAPH: "http://mu.semte.ch/application"
     volumes:
       - "./services/mu-leaderboard:/app"
     links:
-      - triplestore:triplestore
+      - database:database
     labels:
       - "logging=true"
     logging: *default-logging
 
+  # ---------------------------
+  # REGISTRATION
+  # ---------------------------
   registration:
     image: semtech/mu-registration-service:2.7.3
     links:
-      - triplestore:triplestore
+      - database:database
     environment:
       MU_APPLICATION_GRAPH: "http://mu.semte.ch/application"
-      MU_SPARQL_ENDPOINT: "http://triplestore:8890/sparql"
+      MU_SPARQL_ENDPOINT: "http://database:8890/sparql"
     labels:
       - "logging=true"
     logging: *default-logging

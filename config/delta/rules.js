@@ -1,10 +1,17 @@
 export default [
   {
     match: {
-      subject: {},
+        predicate: {
+            type: "uri",
+            value: "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+        },
+        object: {
+            type: "uri",
+            value: "http://xmlns.com/foaf/0.1/OnlineAccount",
+        },
     },
     callback: {
-      url: "http://resource/.mu/delta",
+      url: "http://mu-weekly_counter/new-weekly-counter",
       method: "POST",
     },
     options: {
@@ -15,3 +22,4 @@ export default [
     },
   }
 ];
+
