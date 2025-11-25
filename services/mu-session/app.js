@@ -153,11 +153,16 @@ app.post('/session', async (req, res) => {
 
     console.log(`[LOGIN] Session created successfully`);
 
+    const muAuthAllowedGroups = ['public', 'users'];
+
     return res.status(201).send({
         data: {
             type: 'sessions',
             id: sessionUri,
-            attributes: { identifier: loginIdentifier }
+            attributes: {
+                identifier: loginIdentifier,
+                mu_auth_allowed_groups: muAuthAllowedGroups
+            }
         }
     });
 });

@@ -1,8 +1,30 @@
-# Virtuoso files /data/db
-/data/db/*
-/data/authorization/*
-/data/db/virtuoso.ini
-!/data/db/toLoad
-!/data/db/toLoad/*
+# Node modules
+node_modules/
+npm-debug.log*
 
-docker-compose.override.yml
+# Data directories
+data/db/*
+!data/db/.gitkeep
+data/authorization/*
+!data/authorization/.gitkeep
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Environment
+.env
+.env.local
+
+# Temporary files
+tmp/
