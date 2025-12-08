@@ -11,10 +11,6 @@ services:
   # ---------------------------
   identifier:
     image: semtech/mu-identifier:1.10.3
-    environment:
-      SESSION_COOKIE_SECURE: "on"
-      DEFAULT_MU_AUTH_ALLOWED_GROUPS_HEADER: "[{\"variables\":[],\"name\":\"public\"}]"
-      DEFAULT_ACCESS_CONTROL_ALLOW_ORIGIN_HEADER: "*"
     links:
       - dispatcher:dispatcher
     labels:

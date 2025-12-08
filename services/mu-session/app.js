@@ -1,5 +1,5 @@
 import { app, errorHandler, query } from 'mu';
-import bcrypt from 'bcrypt';
+import bodyParser from 'body-parser';
 
 /**
  * POST /session
@@ -229,5 +229,7 @@ app.get('/me', async (req, res) => {
     });
 });
 
+
+app.use(bodyParser.json({ type: 'application/vnd.api+json' }));
 
 app.use(errorHandler);
