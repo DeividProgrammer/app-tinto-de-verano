@@ -56,12 +56,12 @@ defmodule Dispatcher do
   end
 
   # Counter
-  match "/me/counter/*path", @json do
-    Proxy.forward conn, path, "http://mu-weekly_counter:80/me/counter/"
+  match "/weekly-counters/*path", @json do
+    Proxy.forward conn, path, "http://mu-weekly_counter:80/weekly-counters/"
   end
 
-  match "/me/counter", @json do
-    Proxy.forward conn, [], "http://mu-weekly_counter:80/me/counter"
+  match "/weekly-counts", @json do
+    Proxy.forward conn, [], "http://mu-weekly_counter:80/weekly-counts"
   end
 
   # Leaderboard
