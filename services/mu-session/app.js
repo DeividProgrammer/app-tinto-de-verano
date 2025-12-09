@@ -17,11 +17,14 @@ app.post('/session', async (req, res) => {
     const loginIdentifier = req.body?.data?.attributes?.email;
     const password = req.body?.data?.attributes?.password;
 
+    console.log('[SESSION] POST /session - body:', JSON.stringify(req.body, null, 2));
+
     if (!loginIdentifier || !password) {
         return res.status(400).send({ errors: [{ title: 'Email and password required' }] });
     }
 
     const sessionId = req.get('MU-SESSION-ID');
+    console.log('[SESSION] POST /session - MU-SESSION-ID header:', sessionId);
     if (!sessionId) {
         return res.status(400).send({ errors: [{ title: 'No session from identifier (MU-SESSION-ID missing)' }] });
     }
@@ -96,8 +99,8 @@ app.post('/session', async (req, res) => {
     const cleanSessionId = sessionId.replace(/^https?:\/\/mu\.semte\.ch\/sessions\//, '');
     const sessionUri = `http://mu.semte.ch/sessions/${cleanSessionId}`;
 
-    console.log(`[LOGIN] Clean session ID: ${cleanSessionId}`);
-    console.log(`[LOGIN] Session URI: ${sessionUri}`);
+    console.log('[SESSION] POST /session - cleanSessionId:', cleanSessionId);
+    console.log('[SESSION] POST /session - sessionUri:', sessionUri);
 
     // Delete ALL existing session data for this session ID (any format) using direct Virtuoso call
     const deleteQuery = `
@@ -155,6 +158,7 @@ app.post('/session', async (req, res) => {
 
     const muAuthAllowedGroups = ['public', 'users'];
 
+    console.log('[SESSION] POST /session - sending response with sessionUri as id');
     return res.status(201).send({
         data: {
             type: 'sessions',
@@ -170,6 +174,7 @@ app.post('/session', async (req, res) => {
 
 app.get('/me', async (req, res) => {
     const sessionId = req.get('MU-SESSION-ID');
+    console.log('[SESSION] GET /me - MU-SESSION-ID header:', sessionId);
 
     if (!sessionId) {
         return res.status(401).send({ errors: [{ title: 'Session required (MU-SESSION-ID header)' }] });
@@ -208,6 +213,8 @@ app.get('/me', async (req, res) => {
         } LIMIT 1
     `);
 
+    console.log('[SESSION] GET /me - SPARQL result:', JSON.stringify(result.results.bindings, null, 2));
+
     if (!result.results.bindings.length) {
         console.log(`[GET /me] Session or user not found for: ${cleanSessionId}`);
         return res.status(404).send({ errors: [{ title: 'Session or user not found' }] });
@@ -215,7 +222,11 @@ app.get('/me', async (req, res) => {
 
     const row = result.results.bindings[0];
 
-    console.log(`[GET /me] Found user: ${row.name.value}`);
+    console.log('[SESSION] GET /me - resolved user:', {
+        name: row.name.value,
+        accountName: row.accountName.value,
+        email: row.email?.value || row.accountName.value
+    });
 
     return res.send({
         data: {
