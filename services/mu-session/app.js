@@ -180,7 +180,6 @@ app.get('/me', async (req, res) => {
         return res.status(401).send({ errors: [{ title: 'Session required (MU-SESSION-ID header)' }] });
     }
 
-    // Normalize session URI
     const cleanSessionId = sessionId.replace(/^https?:\/\/mu\.semte\.ch\/sessions\//, '');
     const sessionUri = `http://mu.semte.ch/sessions/${cleanSessionId}`;
 
@@ -192,10 +191,9 @@ app.get('/me', async (req, res) => {
         PREFIX foaf: <http://xmlns.com/foaf/0.1/>
         PREFIX session: <http://mu.semte.ch/vocabularies/session/>
 
-        SELECT ?name ?accountName ?email WHERE {
+        SELECT ?user ?name ?accountName ?email WHERE {
           GRAPH <http://mu.semte.ch/graphs/sessions> {
-            <${sessionUri}>
-              session:account ?account .
+            <${sessionUri}> session:account ?account .
           }
 
           GRAPH <http://mu.semte.ch/application> {
@@ -207,13 +205,13 @@ app.get('/me', async (req, res) => {
             ?user a foaf:Person ;
                   foaf:account ?account ;
                   foaf:name ?name .
-            
+
             OPTIONAL { ?user foaf:mbox ?email }
           }
         } LIMIT 1
     `);
 
-    console.log('[SESSION] GET /me - SPARQL result:', JSON.stringify(result.results.bindings, null, 2));
+    console.log('[SESSION] GET /me - SPARQL result (user):', JSON.stringify(result.results.bindings, null, 2));
 
     if (!result.results.bindings.length) {
         console.log(`[GET /me] Session or user not found for: ${cleanSessionId}`);
@@ -221,12 +219,45 @@ app.get('/me', async (req, res) => {
     }
 
     const row = result.results.bindings[0];
+    const userUri = row.user.value;
 
     console.log('[SESSION] GET /me - resolved user:', {
+        uri: userUri,
         name: row.name.value,
         accountName: row.accountName.value,
         email: row.email?.value || row.accountName.value
     });
+
+    // Fetch groups the user belongs to
+    const groupsResult = await query(`
+        PREFIX schema: <http://schema.org/>
+        PREFIX mu: <http://mu.semte.ch/vocabularies/core/>
+        PREFIX ext: <http://mu.semte.ch/vocabularies/ext/>
+
+        SELECT ?group ?groupUuid ?groupName ?status WHERE {
+          GRAPH <http://mu.semte.ch/application> {
+            <${userUri}> schema:memberOf ?group .
+
+            ?group a schema:Organization ;
+                   mu:uuid ?groupUuid ;
+                   schema:name ?groupName ;
+                   ext:status ?status .
+          }
+        }
+        ORDER BY ?groupName
+    `);
+
+    console.log('[SESSION] GET /me - SPARQL result (groups):', JSON.stringify(groupsResult.results.bindings, null, 2));
+
+    const groups = groupsResult.results.bindings.map(binding => ({
+        type: 'groups',
+        id: binding.groupUuid.value,
+        attributes: {
+            uri: binding.group.value,
+            name: binding.groupName.value,
+            status: binding.status.value
+        }
+    }));
 
     return res.send({
         data: {
@@ -235,6 +266,11 @@ app.get('/me', async (req, res) => {
                 name: row.name.value,
                 accountName: row.accountName.value,
                 email: row.email?.value || row.accountName.value
+            },
+            relationships: {
+                groups: {
+                    data: groups
+                }
             }
         }
     });
