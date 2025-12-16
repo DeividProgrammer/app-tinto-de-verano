@@ -277,6 +277,48 @@ app.get('/me', async (req, res) => {
 });
 
 
+app.delete('/session', async (req, res) => {
+    const sessionId = req.get('MU-SESSION-ID');
+    console.log('[SESSION] DELETE /session - MU-SESSION-ID header:', sessionId);
+
+    if (!sessionId) {
+        return res.status(400).send({ errors: [{ title: 'Session required (MU-SESSION-ID header)' }] });
+    }
+
+    const cleanSessionId = sessionId.replace(/^https?:\/\/mu\.semte\.ch\/sessions\//, '');
+    const sessionUri = `http://mu.semte.ch/sessions/${cleanSessionId}`;
+
+    console.log(`[LOGOUT] Deleting session: ${sessionUri}`);
+
+    const deleteQuery = `
+        PREFIX session: <http://mu.semte.ch/vocabularies/session/>
+        
+        DELETE {
+          GRAPH <http://mu.semte.ch/graphs/sessions> {
+            ?s ?p ?o .
+          }
+        }
+        WHERE {
+          GRAPH <http://mu.semte.ch/graphs/sessions> {
+            ?s ?p ?o .
+            FILTER(
+              STR(?s) = "${sessionUri}" ||
+              STR(?s) = "${sessionId}"
+            )
+          }
+        }
+    `;
+
+    try {
+        await query(deleteQuery);
+        console.log('[LOGOUT] Session deleted successfully');
+        return res.status(204).send();
+    } catch (e) {
+        console.error('[LOGOUT] Error deleting session:', e);
+        return res.status(500).send({ errors: [{ title: 'Failed to delete session' }] });
+    }
+});
+
 app.use(bodyParser.json({ type: 'application/vnd.api+json' }));
 
 app.use(errorHandler);
